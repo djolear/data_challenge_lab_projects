@@ -1,0 +1,306 @@
+VOTER Survey - Part 2
+================
+Your Name
+2018-
+
+-   [2016 vote by social and economic views](#vote-by-social-and-economic-views)
+-   [Estimated size of groups](#estimated-size-of-groups)
+-   [How groups' vote changed between 2012 and 2016](#how-groups-vote-changed-between-2012-and-2016)
+
+``` r
+# Libraries
+library(tidyverse)
+library(compare)
+library(knitr)
+
+# Parameters
+  # File with VOTER Survey data
+file_voter_survey <- "../../data/voter-survey/data.rds"
+  # File for answers
+file_answers <- "../../data/voter-survey/answers_2.rds"
+
+#===============================================================================
+
+# Read in answers
+answers <- read_rds(file_answers)
+```
+
+The [Democracy Fund Voter Study Group](https://www.voterstudygroup.org) "is a research collaboration comprised of nearly two dozen analysts and scholars from across the political spectrum offering new data and analysis exploring American voter's beliefs and behaviors." They commissioned the Views of the Electorate Research Survey (VOTER Survey) after the 2016 US presidential election. This was a survey of 8000 voting-age adults on how they voted in both the 2012 and 2016 presidential elections together with the answers to over 600 other questions. Researchers are using the data from this survey to seek insights into the electorate and the 2016 election.
+
+In Part 1, you derived variables on the views of those surveyed on issues that were salient during the campaign. The result is in the file `file_voter_survey`. In this part, you will visualize this data to seek to understand the relationship of these views to how voters voted in the 2016 election and how their votes changed between 2012 and 2016.
+
+2016 vote by social and economic views
+--------------------------------------
+
+Two of the derived variables were composites
+
+-   `social`: Combination of views on moral issues, and views towards African-Americans, immigrants, and Muslims
+-   `economic`: Combination of views on social safety net, trade, inequality, and the role of government
+
+**q1** Plot `social` vs. `economic` together with how each voter voted in the 2016 election. Why is this plot misleading? Nevertheless, what insights does it provide, especially for the Democrats?
+
+``` r
+vs <- 
+  file_voter_survey %>%
+  read_rds()
+
+vs %>%
+  filter(!is.na(vote_2016)) %>%
+  ggplot(aes(x = social, y = economic, color = vote_2016)) +
+  geom_point(alpha = 0.25) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  scale_color_manual(values = c("blue", "green", "red"))
+```
+
+    ## Warning: Removed 17 rows containing missing values (geom_point).
+
+<img src="challenge_files/figure-markdown_github/unnamed-chunk-2-1.png" width="100%" />
+
+``` r
+vs %>%
+  filter(!is.na(vote_2016)) %>%
+  ggplot(aes(x = social, y = economic)) +
+  geom_point(alpha = 0.3) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  facet_grid(. ~ vote_2016)
+```
+
+    ## Warning: Removed 17 rows containing missing values (geom_point).
+
+<img src="challenge_files/figure-markdown_github/unnamed-chunk-2-2.png" width="100%" />
+
+``` r
+vs %>%
+  filter(!is.na(vote_2016) & vote_2016 != "Other") %>%
+  ggplot(aes(x = social, y = economic)) +
+  geom_hex() +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  facet_grid(vote_2016 ~ .)
+```
+
+    ## Warning: Removed 15 rows containing non-finite values (stat_binhex).
+
+<img src="challenge_files/figure-markdown_github/unnamed-chunk-2-3.png" width="100%" />
+
+This plot is a bit misleading, because it doesn't take `weight` into account and it's unclear how representative each voter is for their resepctive geographic region. It's hard to include size as a geom because there are so many points.
+
+Recall that being below 0 on economic and social issues makes you liberal while being above 0 on these makes you conservative. Interestingly, there seem to be quite a few votes who were economically liberal who ended up voting from Trump. In other words, the red dots spill below the horizontal line much more than they across the vertical line. The Trump voters are also much closer to the horizontal center line than the Clinton voters. There is some spillover of Clinton coters into the socially conservative side of the graph (right side), more so than for Trump voters being socially liberal. All in all, the Clinton voters seem to be more solidly liberal (bottom right corner of the graph) as opposed to Trump voters, who are somewhat conservative and somewhat Populist.
+
+Estimated size of groups
+------------------------
+
+**q2.1** The proportion of the popular vote in the 2016 presidential election was
+
+| vote\_2016 |   prop|
+|:-----------|------:|
+| Clinton    |  0.482|
+| Trump      |  0.461|
+| Other      |  0.057|
+
+Calculate the proportion of the vote for the candidates in the VOTER Survey. How close are the results to the actual vote? (Note: Be sure to use `weight`.)
+
+``` r
+q2.1 <- 
+  vs %>%
+  filter(!is.na(vote_2016)) %>%
+  group_by(vote_2016) %>%
+  summarise(
+    weight = sum(weight)
+  ) %>%
+  transmute(
+    vote_2016,
+    prop = weight / sum(weight)
+  )
+
+# Print results
+if (exists("q2.1")) q2.1 %>% arrange(desc(prop)) %>% kable(digits = 3)
+```
+
+| vote\_2016 |   prop|
+|:-----------|------:|
+| Clinton    |  0.471|
+| Trump      |  0.462|
+| Other      |  0.067|
+
+``` r
+# Compare result with answer
+if (exists("q2.1")) compare(answers$q2.1, q2.1)
+```
+
+    ## TRUE
+
+Our results are pretty similar to the actual election results. More people voted for Clinton in the actual election, so we're only off by 1%.
+
+**q2.2** Now compute and visualize the proportion for each of the groups in `group`. What conclusions can you draw?
+
+``` r
+q2.2 <-
+  vs %>%
+  filter(!is.na(group)) %>%
+  group_by(group) %>%
+  summarise(
+    weight = sum(weight)
+  ) %>%
+  transmute(
+    group,
+    prop = weight / sum(weight)
+  ) 
+
+# Print results
+if (exists("q2.2")) q2.2 %>% arrange(desc(prop)) %>% kable(digits = 3)
+```
+
+| group        |   prop|
+|:-------------|------:|
+| Liberal      |  0.399|
+| Populist     |  0.320|
+| Conservative |  0.229|
+| Libertarian  |  0.053|
+
+``` r
+# Compare result with answer
+if (exists("q2.2")) compare(answers$q2.2, q2.2)
+```
+
+    ## TRUE
+
+``` r
+q2.2 %>%
+  ggplot(aes(fct_reorder(group, prop), prop)) + 
+  geom_col() +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    x = "Political Party",
+    y = "Proportion of Sample"
+  )
+```
+
+<img src="challenge_files/figure-markdown_github/unnamed-chunk-6-1.png" width="100%" /> We can see that there are more liberals in this group than any other party. There are also more populists than conservatives or libertarians. If I had to guess, I'd say that this sample isn't super representative in that there probably aren't more self-identifying populists than conservatives in the country, but I could be wrong. This is likely the reason for weights.
+
+How groups' vote changed between 2012 and 2016
+----------------------------------------------
+
+**q3.1** For each of the four groups in `group` calculate the proportion of the group that voted for the Democratic candidate, the Republican candidate, and Other candidates for both 2012 and 2016.
+
+``` r
+q3.1 <-
+  vs %>%
+  select(group, weight, vote_2012, vote_2016) %>%
+  na.omit() %>%
+  gather("year", "cand", 3:4) %>%
+  transmute(
+    group = group,
+    year = if_else(year == "vote_2016", 2016, 2012),
+    party = if_else(
+      cand %in% c("Obama", "Clinton"), "Democrat", if_else(
+        cand %in% c("Romney", "Trump"), "Republican", "Other"
+      )
+    ),
+    weight = weight
+  ) %>%
+  group_by(group, year, party) %>%
+  summarise(
+    weight = sum(weight)
+  ) %>%
+  mutate(
+    prop = weight / sum(weight)
+  ) %>%
+  select(
+    group,
+    year,
+    party,
+    prop
+  ) %>%
+  ungroup()
+
+# Compare result with answer
+if (exists("q3.1")) compare(answers$q3.1, q3.1)
+```
+
+    ## TRUE
+
+**q3.2** Using `q3.1`, create a visualization to see how the party's proportion of the vote changed for each group between 2012 and 2016. What conclusions can you draw?
+
+``` r
+q3.1 %>%
+  ggplot(aes(x = as.factor(year), y = prop, fill = fct_reorder(party, prop))) +
+  geom_col() +
+  scale_fill_manual(values = c("green", "blue", "red")) + 
+  scale_y_continuous(
+    labels = scales::percent_format()
+  ) +
+  facet_grid(group ~ party, scales = "free") +
+  theme_bw() +
+  theme(
+    #axis.title.x = element_blank()
+  ) +
+  labs(
+    y = "Proportion Voted For",
+    x = "Year"
+  ) +
+  guides(fill = guide_legend(title = "Party Voted For"))
+```
+
+<img src="challenge_files/figure-markdown_github/unnamed-chunk-8-1.png" width="100%" />
+
+``` r
+q3.1 %>%
+  ggplot(aes(as.factor(year), prop, fill = fct_reorder(party, prop))) + 
+  geom_col(position = "dodge") + 
+  scale_fill_manual(values = c("green", "blue", "red")) +
+  scale_y_continuous(
+    labels = scales::percent_format()
+  ) +
+  theme_bw() +
+  theme(
+    axis.title.x = element_blank()
+  ) +
+  facet_wrap(~ group) + 
+  labs(
+    y = "Proportion Voted For"
+  ) +
+  guides(fill = guide_legend(title = "Party Voted For"))
+```
+
+<img src="challenge_files/figure-markdown_github/unnamed-chunk-8-2.png" width="100%" />
+
+``` r
+new_df <-
+  q3.1 %>%
+  spread(year, prop) 
+
+names(new_df)[3] <- "election_a"
+names(new_df)[4] <- "election_b"
+
+new_df %>%
+  mutate(
+    diff = election_b - election_a
+  ) %>%
+  ggplot(aes(x = party, y = diff, fill = fct_reorder(party, diff))) +
+  geom_col() +
+  scale_fill_manual(values = c("blue", "red", "green")) + 
+  scale_y_continuous(
+    breaks = c(-.15, -.125, -.1, -.075, -.05, -.025, 0, .025, .05, .075, .1, .125, .15),
+    labels = scales::percent_format()
+  ) +
+  facet_grid(. ~ group, scales = "free") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  ) +
+  labs(
+    x = "Political Affiliation",
+    y = "Change in Proportion Vote from 2012 to 2016"
+  ) +
+  guides(fill = guide_legend(title = "Party Voted For"))
+```
+
+<img src="challenge_files/figure-markdown_github/unnamed-chunk-8-3.png" width="100%" />
+
+The first thing to notice is that the proportion of liberals voting democrat and conservatives voting republican, respectively, appear to be more or less unchanged from 2012 to 2016. If anything, they each decreased very slightly (around a percent). We can also see that the proportion of conservatives voting democrat went down slightly from 2012 to 2016 whereas the proportion of liberals voting republican was unchanged. Interestingly, more liberals vote republican than do conservatives vote democrat The proportion of libertarians voting democrat went down very slightly from 2012 to 2016, but there was a huge drop in the proportion of libertarians voting republican (from about .5 to .3 or 15%). There was an associated or same size jump in the proportion of libertarians voting for other moving from 2012 to 2016. We can also see that more liberals and conservatives voted for other in 2016 compared to 2012, but this increase is pretty small. Perhaps most notably, there appears to have been a shift in the populist vote such that a lower proportion of the populists voted for republicans in 2012 than in 2016 and vice versa for democrat votes.
+
+In sum, there was a big shift in the libertarian vote, which went from republican to other and a slightly smaller percentage shift in the populist vote which went from democrat to republican. It is likely this shift in the populist vote that determined the election given that there are more populists than there are libertarians (in our sample).

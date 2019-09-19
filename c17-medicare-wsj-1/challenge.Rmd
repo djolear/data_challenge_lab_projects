@@ -1,0 +1,218 @@
+---
+title: "Medicare - WSJ - Part 1"
+author: "Daniel"
+date: 2018-02-12
+output: 
+  github_document:
+    toc: true
+    toc_depth: 6
+---
+
+```{r setup, include=FALSE}
+# knitr options
+knitr::opts_chunk$set(echo = TRUE)
+
+# Parameters
+  # Detailed
+file_detailed_tsv <- "~/Google Drive/classes/dcl/c16/Medicare_Provider_Util_Payment_PUF_CY2012.txt"
+  # Detailed
+file_detailed_rds <- "~/Google Drive/classes/dcl/c16/c16_medicare_1.rds"
+
+file_aggregate_rds <- "~/Google Drive/classes/dcl/c16/c16_medicare_agg.rds"
+
+```
+
+```{r message=FALSE}
+# Libraries
+library(tidyverse)
+```
+
+In 2015 the staff of the Wall Street Journal (WSJ) won a Pulitzer Prize for Investigative Reporting for a series of articles entitled _Medicare Unmasked_. Medicare is the US healthcare program for seniors and the disabled. The prize committee cited the series as "a pioneering project that gave Americans unprecedented access to previously confidential data on the motivations and practices of their health care providers."
+
+For this challenge you will explore unusual doctor billings, as the journalists did for the first story in the series [_Taxpayers Face Big Tab For Unusual Doctor 
+Billings_](http://www.pulitzer.org/files/2015/investigative-reporting/wsjmedicare/01wsjmedicare2015.pdf), Wall Street Journal, 2014-06-10.
+
+## Detailed data
+
+### Download raw data
+
+The data analyzed by the WSJ team for the series is publicly available from the US government agency that oversees Medicare. The team analyzed data from calendar year 2012, an updated version of which is available on at: [Physician and Other Supplier Data CY 2012](https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Medicare-Provider-Charge-Data/Physician-and-Other-Supplier2012.html).
+
+To familiarize yourself with the data, look at [this document](https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Medicare-Provider-Charge-Data/Downloads/Medicare-Physician-and-Other-Supplier-PUF-Methodology.pdf), especially Section 5, which describes the variables.
+
+Now download and unzip the raw detailed data from the link _Medicare Physician and Other Supplier PUF, CY2012, Tab Delimited format_. The unzipped raw detailed data is approximately 2.0 GB. Before converting it, take a look at the first 10 rows.
+
+```{r, message=FALSE}
+file_detailed_tsv %>%
+  read_lines(n_max = 10L)
+```
+
+### Convert data for analysis
+
+Converting the raw data into a form we can analyze can take some computation time. So we will separately convert the raw data into RDS form using an R script. In the `challenge_script` directory you will find a script to complete to convert the detailed data. Use what you learned above.
+
+Run your script from the command line using:
+
+    % Rscript convert_detailed.R
+
+### Read in converted data
+
+Assuming now that you have converted the raw detailed data into RDS format, read the data into a tibble named `detailed`.
+
+```{r}
+detailed <-
+  file_detailed_rds %>%
+  read_rds() %>%
+  slice(2:nrow(.))
+```
+
+### Check data quality
+
+__q1__ Check the number of `NA`s for all of the variables. Are there any problems or issues with the data?
+
+```{r}
+detailed %>%
+  summarise_all(funs(sum(is.na(.))))
+```
+
+Well, it seems like there are a lot of NAs and different numbers of NA's for different variables. Upon closer inspection, we see that the NAs are for variables that identify people as opposed to organizations (last name, middle initial, degreee, gender) and given that this dataset is made up of individuals and organizations, there's no reason for concern.
+
+```{r}
+summary(detailed)
+```
+
+Some variables have super highly-valued outliers such as for LINE_SRVC_CNT which is number of services provided. It's possible that these values come from really large health-care providers since I'm guessing there aren't errors like this in the dataset.
+
+```{r}
+detailed %>% 
+  ggplot(aes(x = LINE_SRVC_CNT)) +
+  geom_histogram()
+
+detailed %>% 
+  ggplot(aes(x = NPPES_ENTITY_CODE, y = LINE_SRVC_CNT)) +
+  geom_boxplot()
+```
+We can see that these aren't really outliers in the sense that there are is a fairly large number of really high values even though most of the numbers are much lower. These are probably just really expensive medical procedures.
+
+
+### Typical record
+
+__q2__ Look at a typical record of for an individual provider (`NPPES_ENTITY_CODE == "I"`). Let's arbitrarily choose the 1000th record for an individual provider in the data. Interpret what you see.
+
+```{r}
+detailed %>%
+  filter(NPPES_ENTITY_CODE == "I") %>% 
+  slice(1000)
+```
+Here we can see that for each individual provider, we have a National Provider Identifier, a last name, a first name, possibly a middle initial, credentials (i.e. medical degree), gender of the provider, the entitity code, the location of the provider, the provider type, whether they particpate in medicare, whether the place of service is a facility or not, and the HCPCS_CODE which designates the specific medical service, a text description of the service, whether a drug was administered, the the number of service provided, the number of unique medicare beneficiaries receiving the service, and a variety of variables related to how much medicare pays for the services. We can see that medicare doesn't cover the total/average submitted charge amount.
+
+### Key variables
+
+Finally, let's look at some of the important variables in `detailed`.
+
+__q3.1__ How many distinct values are there for the following variables: `NPI`,
+`PROVIDER_TYPE`, and `HCPCS_CODE`?
+
+```{r}
+detailed %>%
+  summarise_at(vars(NPI, PROVIDER_TYPE, HCPCS_CODE), funs(n_distinct(.)))
+```
+There are 880644 distinct variables for `NPI`, distinct variables for 89 `PROVIDER_TYPE`, and distinct variables for 5949 `HCPCS_CODE`.
+
+__q3.2__ How many distinct `NPI`s are there for each `NPPES_ENTITY_CODE`? What does this mean?
+
+```{r}
+detailed %>%
+  group_by(NPPES_ENTITY_CODE) %>%
+  summarise_at(vars(NPI), funs(n_distinct(.)))
+```
+NPPES = National Plan & Provider Enumeration System.
+
+NPPES_ENTITY_CODE = Type of entity reported in NPPES. An entity code of ‘I’ identifies providers registered as individuals and an entity type code of ‘O’ identifies providers registered as organizations.
+
+There are 825112 'Inidividual' providers and 55532 'Organization' providers. This means there are more individuals who are providers than organizations that are providers.
+
+## Aggregate data
+
+### Download raw data
+
+In addition to the detailed data, we will need aggregate data. Download and unzip the raw aggregate data from the website above using the link _Medicare Physician and Other Supplier Aggregate table, CY2012, Microsoft Excel (.xlsx)_.
+
+### Convert data for analysis
+
+Converting the raw data into a form we can analyze can take some computation time. So we will separately convert the raw data into RDS form using an R script. In the `challenge_script` directory you will find a script to complete to convert the aggregate data. Use `readxl::read_excel()` to read in the data, which is in Excel format. Run your R script using the program Rscript.
+
+### Read in converted data
+
+Assuming that you have converted the raw aggregate data into RDS format, now read it into the tibble `aggregate`.
+
+```{r}
+aggregate <-
+  read_rds(file_aggregate_rds) 
+```
+
+
+### Check data quality
+
+__q4__ Check the data quality for the aggregate data.
+
+```{r}
+aggregate %>%
+  summarise_all(funs(sum(is.na(.))))
+
+summary(aggregate)
+```
+Here we see a similar distribution of NAs to variables that are only for Individual providers. There are no NAs for variables that you would expect to have values for both individuals and organizations, so I think the data quality is good.
+
+### Typical record
+
+__q5__ Look at a typical record of for an individual provider in the aggregate data. Let's arbitrarily choose the 1000th individual provider in the data. Interpret what you see.
+
+```{r}
+aggregate %>%
+  filter(NPPES_ENTITY_CODE == "I") %>% 
+  slice(1000)
+```
+Here we have a lot of similar set of variables that identify the provider, but now we have total_hcpcs_code which indicates the total number of unique HCPCS codes from a given provider, total number of payments, total unique benefits, total submitted charges, total that medicare allowed/reimbursed, and total medicare payment amount. We can see that medicare does not allow more than the submitted charge. We can also see that medicare allowed is larger than medicare payment!
+
+## Providers earning $500,000 or more from a single procedure
+
+For the rest of the challenge, we will only look at the type of providers that the WSJ looked at: individual providers (`NPPES_ENTITY_CODE == "I"`).
+
+The WSJ looked at providers who received large amounts of money from Medicare for single procedures. `detailed` contains these variables:
+
+* `LINE_SRVC_CNT`: Number of payments for a procedure
+* `AVERAGE_MEDICARE_PAYMENT_AMT`: Average payment for a procedure
+
+Add a new variable `total_medicare_payment_amt` to `detailed` for the total Medicare payments the provider received for the procedure.
+
+```{r}
+wsj <-
+  detailed %>%
+  filter(NPPES_ENTITY_CODE == "I") %>%
+  mutate(total_medicare_payment_amt = LINE_SRVC_CNT * AVERAGE_MEDICARE_PAYMENT_AMT)
+```
+
+
+Let's conclude with a statement made in the WSJ story:
+
+> More than 2,300 providers earned $500,000 or more from Medicare in 2012 from a
+> single procedure or service, according to a Wall Street Journal analysis of
+> Medicare physician-payment data made public for the first time in April. 
+
+__q6__ How many individual providers earned $500,000 or more from a single procedure?
+
+```{r}
+wsj %>% 
+  filter(total_medicare_payment_amt >= 500000)
+
+wsj %>% 
+  filter(total_medicare_payment_amt >= 500000) %>%
+  distinct(NPPES_PROVIDER_LAST_ORG_NAME, NPPES_PROVIDER_FIRST_NAME, NPI, .keep_all = TRUE)
+```
+
+
+What error did the WSJ journalists make?
+
+The WSJ journalists made the rather simple error of not realizing that certain providers were listed in the data multiple times. So it's not the case that more than 2300 providers recieved more than $500,000 from a single procedure. Only 1999 did, but some of these received $500,000 from multiple procedures
+

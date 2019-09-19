@@ -1,0 +1,149 @@
+Inequality - Part 2
+================
+Your Name
+2018-
+
+-   [US income growth by income percentile](#us-income-growth-by-income-percentile)
+
+``` r
+# Libraries
+library(tidyverse)
+library(readxl)
+
+# Parameters
+  # File with US income growth by percentile
+file_income_growth <- "../../data/inequality/data.xlsx"
+```
+
+Growing inequality in the US is a topic of public discourse. The economists Thomas Piketty, Emmanuel Saez, and Gabriel Zucman have meticulously collected data on income and wealth in the US and other countries over time. For this challenge, we will look at their data to understand inequality in the US, and in particular how income growth has changed over time by income percentile.
+
+US income growth by income percentile
+-------------------------------------
+
+In the US, the top 10% has received a larger and larger portion of the national income since 1980. What has this meant for the rest of the population?
+
+Piketty, Saez, and Zucman have compiled data on income growth for each income percentile. From Part 1, we saw that after World War II until 1980, the top 10% share of national income fluctuated between 33 - 39%. After 1980, the share increased steadily to over 47%. Using 1980 as a dividing point, let's compare the average income growth in the 34 years from 1946 - 1980 with that in the 34 years from 1980 - 2014. This data is not in the database used in Part 1, but has been provided by the economists and is in the file `file_income_growth`.
+
+**q1** Read in and create a presentation-quality data visualization of average annual income growth for the two periods of 1946 - 1980 and 1980 - 2014. What conclusions can you draw?
+
+``` r
+data <-
+  file_income_growth %>%
+  read_xlsx() %>%
+  select(`Post-tax income`, `1946`, `1980`) %>%
+  slice(4:nrow(.)) %>%
+  gather("year", "value", `1946`:`1980`)
+  
+labels <-
+  tribble(
+    ~text, ~x, ~y,
+    "Median income growth 1980-2014", 10, .012,
+    "Median income growth 1946-1980", 10, .02,
+    "25th", 23, .05,
+    "50th", 48, .05,
+    "75th", 73, .05,
+    "90th", 88, .05,
+    "99th", 97, .05
+  )
+
+ggplot(data = data, aes(x = `Post-tax income`, y = value, color = year)) +
+  geom_point(size = 3) +
+  
+  geom_hline(yintercept = median(data$value[data$year == "1946"], na.rm = TRUE), color = "grey") +
+  annotate("text", label = "Median income growth 1946-1980", x = 10, y = .02) + 
+  geom_hline(yintercept = median(data$value[data$year == "1980"], na.rm = TRUE), color = "grey") +
+  annotate("text", label = "Median income growth 1980-2014", x = 10, y = .012) + 
+  geom_vline(xintercept = c(25, 50, 75, 90, 99)) +
+  annotate("text", label = "25th", x = 23, y = .05) +
+  annotate("text", label = "50th", x = 48, y = .05) +
+  annotate("text", label = "75th", x = 73, y = .05) +
+  annotate("text", label = "90th", x = 88, y = .05) +
+  annotate("text", label = "99th", x = 97, y = .05) +
+  scale_color_manual(
+    name = "Year",
+    values = c("#0fa7dd", "#ff0034"),
+    labels = c('1946 to 1980','1980 to 2014')
+  ) +
+  scale_x_continuous(
+    breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+  ) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    breaks = c(0, .01, .02, .03, .04, .05, .06)) +
+  theme_bw() +
+  labs(
+    x = "Post-Tax Income Percentile",
+    y = "Percent Growth in Post-Tax Income",
+    title = "Average Anual Income Growth from 1946 - 1980 and 1980 - 2014",
+    subtitle = "Vertical lines indicate percentile of income earners",
+    caption = "Source: Piketty, Saez, and Zucman"
+  ) +
+  theme(
+    plot.title = element_text(size = 20), 
+    plot.subtitle = element_text(size = 15),
+    axis.title = element_text(size = 15),
+    legend.text = element_text(size = 13),
+    legend.title = element_text(size = 15),
+    plot.caption = element_text(size = 15),
+    axis.text = element_text(size = 15)
+
+  ) 
+```
+
+    ## Warning: Removed 12 rows containing missing values (geom_point).
+
+<img src="challenge_files/figure-markdown_github/unnamed-chunk-2-1.png" width="100%" />
+
+``` r
+#  g + geom_text(data = labels, aes(x = x, y = y, label = text))
+```
+
+This graph is pretty striking. We can see that during the period from 1946 to 1980, the biggest gains in income were among the lowest income earners (the downward slope in the blue points). The smallest increases were in the largest income earners. Starting around the 75th percentile, increases in income were actually below the median increase for that time period. Additionally, once you reach the 97th-98th percentile, the increases in income don't really change from there up to the 99.999 percentile.
+
+We see a very different pattern for the period from 1980-2014. The smallest gains in income, which were also below 1%, were among the lowest income earners. The only income earners that are receiving an increase greater than the median income increase for this time period. Additionally, once you hit the 99th percentile, increases in income sky-rocket for the percentiles from 99 up to 99.999. In fact, the biggest jump is from the 99.998th percentile to the 99.999th percentile. This is in stark contrast to these 1946-1980 period where all the points are bunched up. This means that the biggest gains in income are now going to the very, very rich whereas prior to 1980, they were going to the lowest income earners.
+
+It's also interesting to notice that the median income growth from 1946-1980 is actually lower than for 1980-2014, despite these astronomical increases among the ultra-rich.
+
+We can actually zoom in on the 99th to 99.999th percentile to view these increases with higher resolution.
+
+``` r
+data %>%
+  ggplot(aes(x = `Post-tax income`, y = value, color = year)) +
+  geom_point() +
+  #geom_line(size = 1) +
+  geom_hline(yintercept = median(data$value[data$year == "1946"], na.rm = TRUE), color = "grey") +
+  annotate("text", label = "Median income growth 1946-1980", x = 20, y = .017) + 
+  geom_hline(yintercept = median(data$value[data$year == "1980"], na.rm = TRUE), color = "grey") +
+  annotate("text", label = "Median income growth 1980-2014", x = 20, y = .009) + 
+  scale_color_manual(
+    name = "Year",
+    values = c("green2", "red"),
+    labels = c('1946 to 1980','1980 to 2014')
+  ) +
+  scale_x_continuous(
+    breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 99)
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_bw() +
+  labs(
+    x = "Post-Tax Income Percentile",
+    y = "Percent Growth in Post-Tax Income",
+    title = "Average Anual Income Growth from 1946 - 1980 and 1980 - 2014",
+    subtitle = "Vertical lines indicate percentile of income earners",
+    caption = "Piketty, Saez, and Zucman"
+  ) +
+  xlim(99, 100)
+```
+
+    ## Scale for 'x' is already present. Adding another scale for 'x', which
+    ## will replace the existing scale.
+
+    ## Warning: Removed 200 rows containing missing values (geom_point).
+
+    ## Warning: Removed 1 rows containing missing values (geom_text).
+
+    ## Warning: Removed 1 rows containing missing values (geom_text).
+
+<img src="challenge_files/figure-markdown_github/unnamed-chunk-3-1.png" width="100%" />
+
+Note: Good use of annotations can make your visualization easier to understand.

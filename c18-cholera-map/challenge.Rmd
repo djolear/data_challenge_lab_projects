@@ -1,0 +1,207 @@
+---
+title: "Cholera map"
+author: "Daniel"
+date: 2018-02-14
+output: 
+  html_document:
+    toc: true
+    toc_depth: 6
+---
+
+```{r setup, include=FALSE}
+# knitr options
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+library(compare)
+library(leaflet)
+if (!require(leaflet.extras)) {
+  devtools::install_github('bhaskarvk/leaflet.extras')
+  library(leaflet.extras)
+}
+library(sf)
+
+# Parameters
+  # URL for death and pump data in KML format
+url_data <- "http://rtwilson.com/downloads/SnowGIS_KML.zip"
+  # File for answers
+file_answers <- "../../data/cholera-map/answers.rds"
+
+cholera_deaths_kml <- "C:/Users/djole/Google Drive/classes/dcl/c17/SnowGIS_KML/cholera_deaths.kml"
+pumps_kml <- "C:/Users/djole/Google Drive/classes/dcl/c17/SnowGIS_KML/pumps.kml"
+
+deathIcon <- makeIcon(
+  iconUrl = "C:/Users/djole/Google Drive/classes/dcl/c17/death.png",
+  iconWidth = 20, iconHeight = 25,
+  iconAnchorX = 22, iconAnchorY = 94
+)
+
+pumpIcon <- makeIcon(
+  iconUrl = "C:/Users/djole/Google Drive/classes/dcl/c17/pump.png",
+  iconWidth = 20, iconHeight = 25,
+  iconAnchorX = 22, iconAnchorY = 94
+)
+
+#===============================================================================
+# Read in answers
+answers <- read_rds(file_answers)
+```
+
+Maeva Finker (DCL 2017 Winter) contributed to this challenge.
+
+## The 1854 London cholera epidemic
+
+In late August 1854, a severe cholera epidemic broke out in the Soho neighborhood of London. As recounted by Dr. John Snow
+
+> The most terrible outbreak of cholera which ever occurred in this kingdom, is
+> probably that which took place in Broad Street, Golden Square, and adjoining
+> streets, a few weeks ago. Within two hundred and fifty yards of the spot
+> where Cambridge Street joins Broad Street, there were upwards of five hundred
+> fatal attacks of cholera in ten days. The mortality in this limited area
+> probably equals any that was ever caused in this country, even by the plague;
+> and it was much more sudden, as the greater number of cases terminated in a
+> few hours. The mortality would undoubtedly have been much greater had it not
+> been for the flight of the population. [^1]
+
+How cholera spread was not understood at the time, and the prevailing belief was that it was spread through the air. With the deaths from this outbreak concentrated into a relatively small area, Snow suspected that the cause may have been contaminated water from a community water pump at Broad and Cambridge streets. He collected data to test this theory.
+
+> On proceeding to the spot, I found that nearly all of the deaths had taken
+> place within a short distance of the pump. There were only ten deaths in
+> houses situated decidedly nearer to another street pump. In five of these
+> cases the families of the deceased persons informed me that they always sent
+> to the pump in Broad Street, as they preferred the water to that of the pump
+> which was nearer. In three other cases, the deceased were children who went to
+> school near the pump in Broad Street. Two of them were known to drink the
+> water; and the parents of the third think it probable that it did so.
+> [^2]
+
+After Snow reported his findings to the authorities responsible for the community water supply, they ordered the handle from the Broad Street pump removed, and the epidemic soon ended.
+
+Snow created a visualization of his data in the form of a map of the deaths from this outbreak and the water pumps in the area. This map helped to overturn the prevailing beliefs about the transmission of cholera. As a result, London improved its water infrastructure and developed procedures that soon eliminated such cholera outbreaks.
+
+## Download and read in death and pump data
+
+Using a browser and the URL in `url_data` in the parameters, download data for the number of deaths, their location, and the location of the pumps. Unzip and save the data in a place other than a repo. The data is in KML format.
+
+### Read in death data
+
+__q1.1__ Use `sf::read_sf()` to read the downloaded file `cholera_deaths.kml` into the sf object `deaths`, and convert it to have the variables:
+
+* deaths
+* geometry
+
+Sort `deaths` in order of decreasing deaths.
+
+```{r, message=FALSE}
+deaths <- 
+  sf::read_sf(cholera_deaths_kml) %>%
+  mutate(deaths = as.integer(str_extract(Description, "[0-9]+"))) %>%
+  select(deaths, geometry) %>%
+  arrange(desc(deaths))
+
+# Compare result with answer
+if (exists("deaths")) compare(answers$deaths, deaths)
+```
+
+### Read in pump data
+
+__q1.2__ Use `sf::read_sf()` to read the downloaded file `pumps.kml` into the sf object `pumps`, and convert it to have the variable:
+
+* geometry
+
+```{r, message=FALSE}
+pumps <-
+  sf::read_sf(pumps_kml) %>%
+  select(geometry)
+
+# Compare result with answer
+if (exists("pumps")) compare(answers$pumps, pumps)
+```
+
+## Leaflet
+
+We will use the leaflet package to create our maps. This package calls the Leaflet JavaScript library and for this reason the output type for this document is html_document. You can view HTML documents from any browser, but GitHub will only display the HTML source. To submit this task, upload both the challenge.Rmd and the knit challenge.html.
+
+To understand the basics of using Leaflet, read the first three sections of [Leaflet for R](https://rstudio.github.io/leaflet/map_widget.html). The examples use the older sp format. We explain below how to use the functions with the sf format.
+
+## Plot pumps and deaths
+
+__q2__ Use leaflet to visualize the deaths and pump data. Choose a better base map than the default for displaying this data.
+
+Notes
+
+* With sf data, the `lng` and `lat` arguments are not necessary in `addCircles()`.
+* The way you map a variable to an aesthetic in leaflet is with `~`, for example `radius = ~deaths`.
+* You can add tooltips by using the `label` argument to `addCircles()`.
+
+Radius is center of most deaths!
+```{r}
+aoe <- 
+  deaths %>%
+  slice(1)
+
+
+
+leaflet(data = deaths) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addMarkers(clusterOptions = markerClusterOptions(), icon = deathIcon) %>%
+  addMarkers(icon = pumpIcon, data = pumps) %>%
+    addCircles(
+   data = aoe,
+   radius = ~sqrt(deaths) * 60,
+   stroke = 0.3,
+   color = "orange",
+   fillOpacity = 0.05
+   )
+
+leaflet(data = deaths) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addCircles(radius = ~deaths, color = "red", fillColor = "red") %>%
+  addMarkers(icon = pumpIcon, data = pumps, label = "pump") %>%
+  addCircles(
+   data = aoe,
+   radius = ~sqrt(deaths) * 60,
+   stroke = 0.3,
+   color = "orange",
+   fillOpacity = 0.05
+  )
+
+```
+
+
+## Plot pumps and heatmap of deaths
+
+__q3__ Now create a heatmap of the deaths using `addHeatmap()` from the leaflet.extras package.
+
+Notes
+
+* With sf data, the `lng` and `lat` arguments are not necessary in `addHeatmap()`.    
+
+
+```{r}
+leaflet(data = deaths) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addHeatmap(radius = 12, blur = 15, max = 2) %>% 
+  #addCircles(radius = 1, fillColor = "blue", opacity = 1, fill = TRUE) %>%
+  addMarkers(icon = pumpIcon, data = pumps, label = "pump") %>%
+  addCircles(
+   data = aoe,
+   radius = ~sqrt(deaths) * 60,
+   stroke = 0.3,
+   color = "orange",
+   fillOpacity = 0.05
+  )
+
+```
+
+[^1]: Snow J. [On the Mode of Communication of
+Cholera](http://johnsnow.matrix.msu.edu/work.php?id=15-78-52).
+London: Churchill; 1855. p. 38.
+
+[^2]: Snow J. [On the Mode of Communication of
+Cholera](http://johnsnow.matrix.msu.edu/work.php?id=15-78-52).
+London: Churchill; 1855. p. 39-40.
+

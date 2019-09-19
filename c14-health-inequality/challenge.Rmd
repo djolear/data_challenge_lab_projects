@@ -1,0 +1,254 @@
+---
+title: "Health inequality"
+author: "Daniel"
+date: 2018-02-06
+output: 
+  github_document:
+    toc: true
+    toc_depth: 6
+---
+
+```{r setup, include=FALSE}
+# knitr options
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+library(compare)
+
+# Parameters
+  # URL for data with national life expectancy estimates (pooling 2001-14) for
+  # men and women, by income percentile
+url_table_1 <- "https://healthinequality.org/dl/health_ineq_online_table_1.csv"
+  # URL for data with commuting zone life expectancy estimates for men and
+  # women, by income ventile
+url_table_7 <- "https://healthinequality.org/dl/health_ineq_online_table_7.csv"
+  # Commuting zone names
+cznames <- c(
+  "Detroit",
+  "New York City"
+)
+  # File for answers
+file_answers <- "../../data/health-inequality/answers.rds"
+
+color_values_q1 = c("#ff0034", "#0fa7dd")
+
+color_values_q2 = c("#38b1e1", "#ff2936")
+
+#===============================================================================
+# Read in answers
+answers <- read_rds(file_answers)
+```
+
+Raj Chetty, a Stanford Economics professor, and his research collaborators used income data from 1.4 billion de-identified tax records and mortality data from the Social Security Administration to estimate the life expectancy in the United States at 40 years of age by household income, sex and geographic area [^1]. The researchers have a [website](https://healthinequality.org/) from which the [data](https://healthinequality.org/data/) from their report is available for download.
+
+On the same day that the researchers' paper was published, The New York Times
+published a story with visualizations of their data
+
+* Irwin N, Quoctrung B. [The Rich Live Longer Everywhere. For the Poor, Geography
+Matters](https://www.nytimes.com/interactive/2016/04/11/upshot/for-the-poor-geography-is-life-and-death.html).
+New York Times, 2016-04-11.
+
+This challenge is to recreate two of the data visualizations from the original data. You will learn features of ggplot2 with which you can create presentation-quality graphics. It will take some time and practice to learn how to use these features, even with the hints below. Fortunately, once you've figured them out, they'll be part of your toolbox, and they'll be much easier to use in the future.
+
+## Life expectancy of men and women by income
+
+__q1__ Read in the CSV data from at the URL `url_table_1` and recreate the scatterplot from the New York Times story in presentation quality. Take a look at the [Readme](https://healthinequality.org/dl/health_ineq_online_table_1_readme.pdf) file for this data, which describes the variables. The Times plotted race-adjusted life expectancy as a function of the mean household income at age 40.
+
+ggplot2 plots can be highly customized. The best way to learn how to customize your plots is with the [ggplot2 documentation](http://ggplot2.tidyverse.org/reference/index.html) at [tidyverse.org](http://tidyverse.org/). Here are some methods:
+
+* ggplot2 comes with [complete themes](http://ggplot2.tidyverse.org/reference/ggtheme.html) for controlling how your plot appears.
+* You can modify components of the default or other themes with the [`theme()`](http://ggplot2.tidyverse.org/reference/theme.html) function.
+* You can customize the labels for the axis tick marks by providing functions to the `labels =` argument of [`scale_*_continuous()`](http://ggplot2.tidyverse.org/reference/scale_continuous.html). These functions should take as their argument the number for the axis tick mark, and they should return the string to use.
+* You can annotate a plot using the `annotate()` function.
+* You can customize colors with [`scale_*_manual()`](http://ggplot2.tidyverse.org/reference/scale_manual.html).
+* You can make your plot larger by setting the chunk variable `out.width="100%"`.
+* You can adjust the aspect ratio of your plot with the chunk variable `fig.asp=`.
+
+
+```{r, q1, out.width="100%", fig.asp=0.65}
+url_table_1 %>%
+  read_lines(n_max = 10)
+
+q1 <- 
+  url_table_1 %>%
+  read_csv()
+
+q1 %>%
+  sample_frac %>%
+  ggplot(mapping = aes(x = hh_inc_age40, y = le_raceadj, fill = gnd)) +
+  geom_point(
+    shape = 21, 
+    size = 3, 
+    color = "white", 
+    stroke = .3
+  ) +
+  coord_cartesian(xlim = c(0, 330000)) +
+  scale_fill_manual(values = color_values_q1) +
+  scale_x_continuous(
+    breaks = seq(50000, 300000, 50000), 
+    labels = c("$50k", "$100k", "$150k", "$200k", "$250k", "$300k")
+  ) +
+  scale_y_continuous(
+    breaks = seq(75, 90, 5), 
+    labels = c("75", "80", "85", "90 years"), 
+    expand = c(0, 1), limits = c(70, 90), 
+    minor_breaks = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(),
+    axis.text.y = element_text(),
+    axis.ticks.x = element_line(size = 0.1),
+    axis.title.x = element_text(),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "none"
+  ) +
+  labs(
+    title = "The Richest Men Live 15 Years Longer than the Poorest 1 Percent",
+    x = "Household Income",
+    y = NULL
+  ) +
+  annotate(
+    "text", 
+    x = 50000, 
+    y = 88, 
+    label = "Life expectancy\nfor women", 
+    size = 3, 
+    hjust = 0
+  ) +
+  annotate(
+    "text", 
+    x = 100000, 
+    y = 81.5, 
+    label = "Life expectancy\nfor men", 
+    size = 3, 
+    hjust = 0
+  )
+
+
+   
+# Print results
+if (exists("q1")) q1
+
+# Compare result with answer
+if (exists("q1")) knitr::include_graphics("data/q1.png")
+```
+
+## Life expectancy in New York and Detroit
+
+__q2.1__ Read in the CSV data from at the URL `url_table_7`, filter to the commuting zones in `cznames`, and transform the data for plotting. The relevant variables, explained in the [Readme](https://healthinequality.org/dl/health_ineq_online_table_7_readme.pdf), begin with `le_raceadj_v`. (Hint: `tidyr::separate()` may be helpful.)
+
+```{r, q2.1, message=FALSE, warning=FALSE}
+url_table_7 %>%
+  read_lines(n_max = 10)
+
+
+q2.1 <-
+  url_table_7 %>%
+  read_csv() %>%
+  filter(czname %in% cznames) %>%
+  select(-c(cz, pop2000, fips, statename, stateabbrv))  %>%
+  gather(key = "var", value = "life_expectancy", 2:201) %>%
+  filter(str_sub(var, 1, 7) == "le_race") %>%
+  separate(var, c("trash", "ven_gen"), "le_raceadj_v") %>%
+  select(-trash) %>%
+  separate(ven_gen, c("ventile", "gender"), "_") %>%
+  mutate(ventile = as.integer(ventile))
+
+# Compare result with answer
+if (exists("q2.1")) compare(answers$q2.1, q2.1, ignoreAttrs = TRUE)
+```
+
+__q2.2__ Using your transformed data, recreate the line plots from the New York Times story in presentation quality.
+
+Here are some additional methods:
+
+* You can join string columns together using `tidyr::unite()`.
+* You can specify the order of facets by turning the facet variable into an ordered factor, using the `levels =` argument to specify the order of the levels. You can specify the facet labels by using the `labels =` argument.
+* You can add text to your plots in a way that works with facets by creating a separate tibble for the labels that uses the same variable names as the rest of the plot, including the facet variable, and then using this tibble with the `data =` argument of [`geom_text()`](http://ggplot2.tidyverse.org/reference/geom_text.html).
+
+```{r, q2.2, out.width="100%", fig.asp=0.67}
+data_text <- 
+  tibble(
+    czname = c("New York", "Detroit", "New York", "Detroit"),
+    labs = c("New York Area", "Detriot Area", "New York Area", "Detriot Area"),
+    gender   = c("F", "F", "M", "M"),
+    ventile = c(6, 9, 6, 9),
+    life_expectancy = c(87, 82, 83, 77)
+  )
+
+q2.1$gender <- 
+  factor(q2.1$gender, levels = c("M", "F"), labels = c("Men", "Women"))
+
+data_text$gender <- 
+  factor(data_text$gender, levels = c("M", "F"), labels = c("Men", "Women"))
+
+q2.2 <- 
+  q2.1 %>%
+  ggplot(
+    mapping = aes(
+      x = ventile, 
+      y = life_expectancy, 
+      alpha = czname, 
+      color = gender
+    )
+  ) +
+  geom_line(size = 1) +
+  scale_color_manual(values = color_values_q2) +  
+  scale_alpha_discrete(range = c(0.4, 1)) +
+  scale_x_continuous(
+    breaks = c(1, 5, 10, 15, 19),
+    labels = c("5th", "25th", "50th", "75th", "95th"),
+    expand = c(0, 1),
+    minor_breaks = NULL
+  ) +
+  scale_y_continuous(
+    breaks = seq(75, 90, 5),
+    labels = c("75", "80", "85", "90 years"),
+    expand = c(0, 1), 
+    limits = c(72, 91),
+    minor_breaks = NULL
+  ) +
+  facet_grid(. ~ gender) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    axis.ticks.x = element_line(size = 0.1),
+    axis.title.x = element_text(),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "none"
+  ) +
+  labs(
+    title = "Geography Matters More for the Poor",
+    x = "Income Percentile",
+    y = NULL
+  ) + 
+  geom_text(
+    data = data_text, 
+    mapping = aes(
+      x = ventile, 
+      y = life_expectancy, 
+      label = labs, 
+      group = NULL
+    ),
+    inherit.aes = FALSE
+  )
+
+# Print results
+if (exists("q2.2")) q2.2
+
+# Compare result with answer
+if (exists("q2.2")) knitr::include_graphics("data/q2.2.png")
+```
+
+
+[^1]: Chetty R, et al. [The Association between Income and Life Expectancy in the
+United States, 2001 - 2014](https://healthinequality.org/documents/). Journal of
+the American Medical Association, 2016 Apr 11;315(14).
+

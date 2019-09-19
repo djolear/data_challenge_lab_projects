@@ -1,0 +1,249 @@
+---
+title: "Mortality - Part 2"
+author: "Daniel"
+date: 2018-03-07
+output: 
+  github_document:
+    toc: true
+    toc_depth: 6
+---
+
+```{r setup, include=FALSE}
+# knitr options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  out.width = "100%"
+)
+```
+
+```{r}
+# Libraries
+library(tidyverse)
+library(compare)
+
+# Parameters
+  # File with answers
+file_answers <- "../../data/mortality/answers_2.rds"
+  # Mortality data by census region for white non-Hispanics ages 45 - 54
+file_white_mortality_region <- "C:/Users/djole/Downloads/Underlying Cause of Death, 1999-2016 (3).txt"
+  # Population data by census region for white non-Hispanics ages 45 - 54
+file_white_population_region <-  "C:/Users/djole/Downloads/c29_q1.2.txt"
+
+#===============================================================================
+# Read in answers
+answers <- read_rds(file_answers)
+```
+
+In November 2015, Anne Case and the Nobel Prize-winning economist Angus Deaton published a paper that made national news:
+
+* Case A, Deaton A. [Rising morbidity and mortality in midlife among white non-Hispanic Americans in the 21st century](http://www.pnas.org/content/112/49/15078.full). PNAS 2015;112(49):15078-15083.
+* [Death Rates Rising for Middle-Aged White Americans, Study Finds](https://www.nytimes.com/2015/11/03/health/death-rates-rising-for-middle-aged-white-americans-study-finds.html). New York Times, 2015-11-02.
+
+Through the analysis of mortality data, the authors presented the striking conclusion that while mortality rates are declining in other industrial countries and for other demographics in the US, they are actually rising in the US for white non-Hispanics ages 45 - 54.
+
+In Part 1, you familiarized yourself with the data. In Part 2, you will create helper functions and use them to begin to seek insights into the underlying causes for the rise in mortality rates for this population.
+
+For this challenge, we will do the following:
+
+* We will focus on the same years as the Case and Deaton paper: 1999 - 2013.
+* We will focus on the same age group as the paper: ages 45 - 54.
+* Unlike the paper, for all analyses use age-adjusted mortality with 1999 as the reference year.
+
+## Helper functions
+
+You will find your work greatly simplified if you create some helper functions to do tasks that need to be done multiple times. To calculate the age-adjusted mortality for the question below and for Part 3, we recommend that you download two files for each study:
+
+* Mortality data with year, age, and the variables you are interested in studying. This file will contain the deaths for each combination of variables.
+* Population data with same variables as the mortality data. This file will contain the population for each combination of variables
+
+With these two files, you can calculate the age-adjusted mortality rate from 1999 - 2013 for the variables your are studying.
+
+Create the following helper functions:
+
+* `read_mortality(file)` should read in the mortality TSV file you download from the CDC Wonder database and return the tibble that results from
+
+    * Removing the variables `Notes`, `Year Code`, `Single-Year Ages`, `Population`, `Crude Rate`.
+    * Creating the integer variables `year`, `age`, and `deaths`.
+    * Filtering the years to 1999 - 2013.
+
+* `read_population(file)` should read in the population TSV file you download from the CDC Wonder database and return the tibble that results from
+
+    * Removing the variables `Notes`, `Age`, `Yearly July 1st Estimates`.
+    * Creating the integer variables `year`, `age`, and `population`.
+    * Filtering the years to 1999 - 2013.
+    
+* `get_population(df)` should take the output of `read_population(file)` and return the tibble that results form
+
+    * Filtering to year 1999.
+    * Removing the `year` variable.
+    * Renaming the `population` variable to `population_1999`.
+    
+* `age_adjust(mortality, population, join_vars, ...)` should take the output of `read_mortality(file)`, `read_population(file)`, `get_population(df)` and return a tibble with the age-adjusted mortality rate
+
+    * `join_vars` can be used in the specification of the join variables to left join mortality and population; this variable could be, for example `c("Census Region" = "Region")`. 
+    * `...` is a variable that allows the function to have some flexibility. You can use `...` in your `group_by()`; then any number of variables given to the function other than the first three will be given to `group_by()`. Note: use `...` as the first variable in `group_by()` in order to match the answers.
+
+
+### Test of helper functions
+
+Before continuing, let's test your functions.
+
+First, download the mortality data for white, non-Hispanics by census region and provide the path to the file in the variable `file_white_mortality_region` in the parameters section above. Download this file from the [Underlying Cause of Death database](https://wonder.cdc.gov/controller/datarequest/D76), using a query with the following parameters:
+
+* Group By: Census Region, Year, Age Groups
+* States: All
+* 2013 Urbanization: All
+* Single-Year Ages: 45 years, 46 years, 47 years, 48 years, 49 years, 50 years, 51 years, 52 years, 53 years, 54 years
+* Gender: All
+* Hispanic Origin: Not Hispanic or Latino
+* Race: White
+* Year/Month: All
+* Weekday: Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Unknown (Note: that Unknown is not included in the default)
+* Autopsy: All
+* Place of Death: All
+* ICD-10 Codes: All
+* Show Totals: False
+* Show Zero Values: True
+* Show Suppressed: True
+* Precision: 1 decimal places
+
+Note: When you submit a request, you will get a message in red that reads "Processing Request, please wait for results...". This message is independent of your download. Use your browser to see when the file has been downloaded. When it has, hit "Cancel Request".
+
+__q1.1__ The following will test `read_mortality()`.
+
+```{r}
+read_mortality <- function(file) {
+  file %>% 
+    read_tsv() %>% 
+    select(
+      `Census Region`,
+      `Census Region Code`,
+      year = Year,
+      age = `Single-Year Ages Code`,
+      deaths = Deaths
+    ) %>%
+    filter(year >= 1999, year <= 2013)
+}
+if (exists("read_mortality")) {
+  compare(answers$q1.1, read_mortality(file_white_mortality_region))
+}
+```
+
+Next, download the population data for white, non-Hispanics by census region and provide the path to the file in the variable `file_white_population_region` in the parameters section above. Download this file from the [Bridged-Race Population Estimates database](https://wonder.cdc.gov/Bridged-Race-v2016.HTML), using a query with the following parameters:
+
+* Group By: Region, Yearly July 1st Estimates, Age
+* States: All
+* Age: 45 years, 46 years, 47 years, 48 years, 49 years, 50 years, 51 years, 52 years, 53 years, 54 years
+* Race: White
+* Ethnicity: Not Hispanic or Latino
+* Yearly July 1st Estimates: All Years
+* Show Totals: False
+* Show Zero Values: True
+
+Note: You will again get the message "Processing Request, please wait for results...". Again hit "Cancel Request" after you see from your browser that the file has downloaded.
+
+__q1.2__ The following will test `read_population()`.
+
+```{r}
+read_population <- function(file) {
+  file %>%
+    read_tsv() %>%
+    select(
+      `Region`,
+      `Region Code`,
+      year = `Yearly July 1st Estimates`,
+      age = `Age Code`,
+      population = Population
+    ) %>%
+    filter(year >= 1999, year <= 2013)
+}
+
+if (exists("read_population")) {
+  compare(answers$q1.2, read_population(file_white_population_region))
+}
+```
+
+__q1.3__ The following will test `get_population_1999()`.
+
+```{r}
+get_population_1999 <- function(df) {
+  df %>%
+    filter(year == 1999) %>%
+    mutate(population_1999 = population) %>% 
+    select(-c(year, population)) 
+}
+
+ if (exists("get_population_1999")) {
+  read_population(file_white_population_region) %>% 
+  get_population_1999() %>% 
+  compare(answers$q1.3, .)
+}
+```
+
+__q1.4__ The following will test `age_adjust()`.
+
+```{r}
+age_adjust <- function(mortality, population, join_vars, ...) {
+  mortality %>%
+    left_join(population, by = c(join_vars, "year", "age")) %>%
+    group_by(..., year, age) %>%
+    summarise(
+      rate = sum(deaths) / sum(population) * 100000
+    ) %>%
+    left_join(get_population_1999(population), by = c(join_vars, "age")) %>%
+    group_by(..., year) %>%
+    summarise(
+      rate_age_adj = weighted.mean(rate, w = population_1999)
+    ) %>%
+    ungroup()
+}
+
+if (exists("age_adjust")) {
+  age_adjust(
+    mortality = read_mortality(file_white_mortality_region),
+    population = read_population(file_white_population_region),
+    join_vars = c("Census Region" = "Region"),
+    `Census Region`
+  ) %>% 
+  compare(answers$q1.4, .)
+}
+```
+
+* `age_adjust(mortality, population, join_vars, ...)` should take the output of `read_mortality(file)`, `read_population(file)`, `get_population(df)` and return a tibble with the age-adjusted mortality rate
+
+    * `join_vars` can be used in the specification of the join variables to left join mortality and population; this variable could be, for example `c("Census Region" = "Region")`. 
+    * `...` is a variable that allows the function to have some flexibility. You can use `...` in your `group_by()`; then any number of variables given to the function other than the first three will be given to `group_by()`. Note: use `...` as the first variable in `group_by()` in order to match the answers.
+
+
+## Disaggregated mortality rates
+
+Let's see if any subgroups of the white non-Hispanic population had higher mortality rates than the others.
+
+### Census region
+
+__q2__ In particular, let's see if there is a geographic disparity in the increase of mortality in white non-Hispanics. Create a plot with the age-adjusted mortality rates for each of the four census regions over time. What conclusions can you draw?
+
+```{r}
+q2 <-  
+  age_adjust(
+    mortality = read_mortality(file_white_mortality_region),
+    population = read_population(file_white_population_region),
+    join_vars = c("Census Region" = "Region"),
+    `Census Region`
+  )
+  
+q2 %>%
+  ggplot(aes(year, rate_age_adj)) +
+  geom_line(aes(color = `Census Region`)) +
+  theme_bw() +
+  labs(
+    x = "Year",
+    y = "Age-Adjusted Mortality Rates",
+    title = "Age-Adjusted Mortality Rates from 1999-2013 Across 4 Geographic Regions",
+    subtitle = "More people are dying in the South"
+  )
+```
+
+There is substantial geographic disparity in the increase of mortality in white non-Hispanics. White non-Hispanics are experienced much higher increases in the South than in any other geographic region. In fact, there appear to have been decreases in morality among white non-Hispanics in the Northeast and (from 1999 to 2013) no overall increases for white non-Hispanics in the West. There appears to have been a slight increase in mortality among white non-Hispanics in the Midwest. It kind of makes sense that the South and the Midwest are the two regions where there have been slight increases in mortality because these regions have been somewhat economically left behind.

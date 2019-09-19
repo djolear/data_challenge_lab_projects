@@ -1,0 +1,277 @@
+---
+title: "Diamonds - Part 1"
+author: "Daniel"
+date: 2018-01-15
+output: 
+  github_document:
+    toc: true
+    toc_depth: 6
+---
+
+```{r setup, include=FALSE}
+# knitr options
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+```
+
+The ggplot2 package contains the dataset `diamonds` consisting of the data for
+53940 round diamonds from the
+[Diamond Search Engine](http://www.diamondse.info).
+
+This challenge is the first of a series of challenges with the `diamonds`
+dataset. We will use exploratory data analysis to first understand the data, and
+then use the insights to build a model of `price` as a function of the
+"Four Cs", `carat`, `clarity`, `color`, and `cut`.
+
+The goals of Part 1 are to
+
+* Get an overview of the data and see if there are any problems.
+* Remove rows that are not possible or are outliers.
+* Understand each of the five variables through their one-dimensional
+distributions.
+
+## Basics of understanding a dataset
+
+### ?
+
+A dataset such as `diamonds` that is part of an R package will usually have a
+help page that explains the variables. The ggplot2 package is loaded as part of
+
+```{r, eval=FALSE}
+# Libraries
+library(tidyverse)
+```
+
+Once ggplot2 is loaded, you can see the help page for `diamonds` by typing
+`?diamonds` at the console prompt. Do this.
+
+### glimpse()
+
+__q1__ You can learn about the types of variables and see the first values with
+`glimpse(diamonds)`. Do this using a chunk below this paragraph. You can get
+a new chunk by typing `Cmd + Opt + I` (Mac) or `Ctrl + Alt + I` (Windows)
+at the place you want it to be inserted, or by using the green icon with a C and
+a plus sign in the RStudio R Markdown editor. Once you have added code to a
+chunk, you can execute it with the green arrow pointing to the right. Usually
+the earlier chunks will also need to be executed. This can be done with the
+downward pointing arrow.
+
+```{r}
+glimpse(diamonds)
+```
+
+### View()
+
+You can scroll around and see the values of the dataset by typing
+`View(diamonds)` at the console prompt. Do this.
+
+### summary()
+
+__q2__ `summary(diamonds)` does what its name suggests, it provides a summary for each of the variables, depending upon their type. Use this command (in a chunk) to get an overview of the variables. Are there any `NA`s (NA: "not available" or missing value)? Are any variable values not possible? What conclusions can you draw?
+
+```{r}
+summary(diamonds)
+```
+
+`carat` ranges from 0.2 to 5.01 with a mean value of 0.8. `cut` ranges from Fair to Ideal, with most diamonds falling in the Ideal category. `clarity` ranges from I1 to IF with most values falling in the SI1 category. `depth` ranges from 43.00 to 79.00 with a mean value of 61.75. `table` ranges from 43.00 to 95.00 with a mean value of 57.46. `price` ranges from 326 to 18823 with a mean value of 3933. `x` or length ranges from 0 to 10.74 with a mean value of 5.73. `y` or width ranges from 0 to 58.90 with a mean value of 5.74.  `z` or depth ranges from 0 to 31.80 with a mean of 3.54.
+
+As far as I can tell, there are no missing values/NA's for any variable.
+
+It looks like there are certain rows in the data (i.e. diamonds) for which the `x`, `y`, or `z` variables take the value 0. Since I diamond must have a positive, non-zero value for each of these variables in order for it to exist, these variable values are not possible.
+
+#### Remove rows with variables whose values are not possible
+
+__q3__ In the previous section, you should have noticed that some of the
+variables had values that are not possible. Remove from `diamonds` the rows with
+variables that are not possible and save the result in a new tibble `df`.
+
+```{r}
+df <- 
+  diamonds %>%
+  filter(x != 0, y != 0, z != 0)
+```
+
+
+## Outliers
+
+__q4__ Investigate whether there might be other problems with the dimension
+variables `x`, `y`, and `z`. In particular, use `df` and box plots to observe
+whether there are outliers for any of these variables. Are there any?
+
+```{r}
+df %>%
+  gather("dimension", "size", 8:10) %>%
+  ggplot(mapping = aes(x = dimension, y = size)) +
+  geom_boxplot()
+```
+
+From this first boxplot, we can see that there clearly are some outliers. Let's get rid of the ones who have a size greater than 20 mm that are messing up the scale as it appears there may be even more outliers.
+
+```{r}
+df %>%
+  gather("dimension", "size", 8:10) %>%
+  filter(size < 20) %>% 
+  ggplot(mapping = aes(x = dimension, y = size)) +
+  geom_boxplot()
+```
+
+Now that we can see the data without these extreme points, we can see that there is a wide range, but that there are a fair number of points that fall outside the box and whiskers of the boxplot. I'm not sure we want to remove these from the data given how many there are whereas the points that were above 20 mm are clear outliers.
+
+
+
+### Remove outliers
+
+__q5__ In the previous section, you should have some discovered some outliers.
+Modify `df` by removing the extreme outliers.
+
+```{r}
+df <-
+  df %>%
+  filter(x < 20, y < 20, z < 20)
+
+summary(df) # just checking that the outliers were removed.
+```
+
+
+## Distribution of continuous variables `carat` and `price`
+
+__q6__ Plot the distribution of the `carat` variable using a histogram. Be sure
+to experiment with small bin widths. You can do this because this dataset has a
+large number of rows.
+
+```{r}
+df %>%
+  ggplot(mapping = aes(x = carat)) +
+  geom_histogram(bin_width = .1, bins = 500)
+```
+It seems like we don't get much better purchase on the data going below a bindwidth of .1  and might even be okay with a bindwidth of .5. It also doesn't seem useful to go for more than 500 bins.
+
+__q7__ For which value of `carat` are 99% of the diamonds below? (Hint: Look at
+`quantile()`.)
+
+```{r}
+quantile(df$carat, probs = c(0, .25, .75, .99, 1))
+
+quantile(df$carat, probs = 0.99)
+```
+
+99% of the diamonds are less than 2.18 carats.
+
+
+__q8__ In later parts, the goal will be to develop a model for the price of
+diamonds. Modeling requires sufficient data. For this purpose, we will restrict
+attention to the values of `carat` that account for 99% of the diamonds, but
+less than half of the range. Filter the diamonds above the 99% quantile out
+of `df`.
+
+```{r}
+df <-
+  df %>%
+  filter(carat <= 2.18)
+
+quantile(df$carat)
+```
+
+# from the solution
+```{r}
+df <- 
+  df %>% 
+  filter(carat <= quantile(df$carat, probs = 0.99))
+
+nrow(df)
+```
+
+
+__q9__ Plot the distribution of `carat` again. What conclusions can you draw?
+
+```{r}
+df %>%
+  ggplot(mapping = aes(x = carat)) +
+  geom_histogram(bin_width = .01, bins = 200)
+```
+
+It looks like there are more diamonds that have a lower `carat` than that have a higher `carat`, which is to be expected. There are also distinct peaks in the distribution around `carat`. Some of the most noticable ones appear to be right above .25, at .375, at .5, right below .75, around .82, at 1.0, right below 1.25, at 1.5 and at 2.0. It appears that it is less likely for there to be a diamond right below one of these peaks. In other words, it is more likely for there to be a 1.5 than a 1.49 or a 2.0 than a 1.99. This is probably because even though 1.49 and 1.5 are very similar, 1.5 is likely more marketable than 1.49. 
+
+# from the solution
+```{r}
+df %>% 
+  ggplot(mapping = aes(x = carat)) +
+  geom_histogram(binwidth = 0.01) +
+  scale_x_continuous(breaks = seq(0.2, 2.2, 0.1), minor_breaks = NULL)
+```
+
+__q10__ Look at the distribution of price. What conclusions can you draw?
+
+```{r}
+df %>%
+  ggplot(mapping = aes(x = price)) +
+  geom_histogram(bin_width = 1, bins = 200)
+
+summary(df)
+```
+
+The distribution of `price` follows an expected pattern where there are more diamonds that are cheaper and fwer diamonds that are very expensive. The mean price is 3822 and the median price is 2373 which makes sense given that the distribution has a positive skew. It looks like most of the diamonds cost 1000 and the maximum price is 18818. There is a wierd gap in the prices around 1200-1300. I'm not sure what that's about. 
+
+It's interesting that the distribution of `price` doesn't follow the distribution of `carat`. One might expect `price` to correlate very strongly with `carat`, but we don't see the same peaks in the `price` distribution that we see in the `carat` distribution, so there seem to be other factors that are contributing to `price`.
+
+```{r}
+df %>% 
+  filter(price >= 1400, price <= 1600) %>% 
+  ggplot(mapping = aes(x = price)) +
+  geom_histogram(binwidth = 10)
+```
+
+## Distribution of discrete variables `clarity`, `color`, and  `cut`
+
+The levels for variables `cut` and `clarity` are in order of increasing quality.
+For consistency, remove `eval=FALSE` from the following chunk to reorder the
+levels for variable `color` to likewise be in order of increasing quality.
+
+```{r}
+levels(df$color)
+
+df <-
+  df %>%
+  mutate(color = fct_rev(color))
+
+levels(df$color)
+```
+
+__q11__ Create a plot for each variable `clarity`, `color`, and  `cut` with the one-dimensional distribution of the count for each variable level. What conclusions can you draw?
+
+```{r}
+df %>%
+  ggplot(mapping = aes(x = clarity)) +
+  geom_bar()
+```
+
+This distribution shows us that most diamonds have a `clarity` of SI1. There are fewer diamonds of `clarity` I1 (the worst level) in the dataset than any other `clarity`, followed by IF (the best level). Interestingly, the shape of this distribution is very similar to the distribution for price in that it is also positively skewed. This makes me wonder whether `clarity` and `carat` are the biggest contributors to the overall price of a diamond.
+
+```{r}
+df %>%
+  ggplot(mapping = aes(x = color)) +
+  geom_bar()
+```
+
+This distribution for `color` has a different shape than all of the other distributions. There are more diamonds with a `color` rating of G than any other kind in the dataset, followed by E, then F, then H, then D (the best `color`). This distribution looks a little less skewed than the other distributions so far. This distribution also doesn't follow the pattern of the `price` distribution so maybe it doesn't have as much of an influence on `price`.
+
+```{r}
+df %>%
+  ggplot(mapping = aes(x = cut)) +
+  geom_bar()
+```
+
+This is very interesting! It looks like the shape of the `cut` distribution is basically the opposite of the `price` distribution. There are more of the highest quality `cut` of dimaond (Ideal) in the datset than any other type. There are fewer diamonds with a fair `cut` than any other type. Overall, there are more high quality cut diamonds than low quality cut diamonds. This suggests that `price` is inversely related to `cut`.
+
+This also suggests that there may be an inverse relationship between `cut` and `carat` and `cut` and `clarity`. Why would this be the case? Maybe we can do some additional research or exploration in a future challenge.
+
+
+
+
+
+
+

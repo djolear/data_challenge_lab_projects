@@ -1,0 +1,501 @@
+---
+title: "Election 2016 - Part 1"
+author: "Daniel"
+date: 2018-01-25
+output: 
+  github_document:
+    toc: true
+    toc_depth: 6
+---
+
+```{r setup, include=FALSE}
+# knitr options
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+library(compare)
+
+# Parameters
+  # File for answers
+file_answers <- "../../data/election-2016/answers_1.rds"
+
+#===============================================================================
+# Read in answers
+answers <- read_rds(file_answers)
+```
+
+In 2012, Barack Obama won the US presidential election by winning 332 electoral votes from 26 states and the District of Columbia ([Map](https://www.nytimes.com/elections/2012/results/president.html)). In 2016, Donald Trump won the election by winning 306 electoral votes from 30 states ([Map](https://www.nytimes.com/elections/results/president)). In this challenge, we will look at the election results at the county level to get an idea of whose votes changed between the two elections.
+
+## Election data
+
+The data for this challenge is on [Box](https://stanford.box.com/s/16wnss2uvf5gfjd32slc4jtaxlvkpmth). Note that this is proprietary data for use only by students in ENGR 150: Data Challenge Lab. Please read the [license](https://stanford.box.com/s/97fnjp51lg9ne637bplyc1wv0qmazu3n) for restrictions on its use.
+
+### FIPS codes
+
+Each county has a unique FIPS (Federal Information Processing Standard) code. These unique identifiers can be used to join together county data from different sources.
+
+### Read in data
+
+__q1__ The data are in two CSV files, one for the 2012 election, the other for the 2016 election. Both files have election results at the county level. Download the two files into a directory other than your GitHub repository.
+
+Read the 2012 data into a tibble `q1.1` with variables
+
+* `county_fips`
+* `county_name`
+* `type`
+* `total_2012`: total votes in 2012
+* `obama`: votes for Obama
+* `romney`: votes for Romney
+
+```{r}
+root <- "~/Google Drive/classes/dcl/election-2016/leip/"
+#root <- "C:/Users/djole/Google Drive/classes/dcl/election-2016/leip/"
+
+df12 <- "2012_0_0_2_county.csv"
+df12 <- paste(root, df12, sep = "")
+
+df12 %>%
+  read_lines(n_max = 70) %>%
+  writeLines()
+
+q1.1 <-
+  df12 %>%
+  read_csv(
+    skip = 2, 
+    col_names = c("county_fips", "county_name", "type", "total_2012", 
+                   "obama", "romney"), 
+    col_types = "icciii"
+  )
+```
+
+
+Read the 2016 data into a tibble `q1.2` with variables
+
+* `county_fips`
+* `county_name`
+* `type`
+* `total_2016`: total votes in 2016
+* `clinton`: votes for Clinton
+* `trump`: votes for Trump
+
+```{r}
+df16 <- "2016_0_0_2_county.csv"
+df16 <- paste(root, df16, sep = "")
+
+df16 %>%
+  read_lines(n_max = 70) %>%
+  writeLines()
+
+q1.2 <-
+  df16 %>%
+  read_csv(
+    skip = 2, 
+    col_names = c("county_fips", "county_name", "type", "total_2016", 
+                   "clinton", "trump"), 
+    col_types = "icciii"
+  )
+```
+
+
+```{r, message=FALSE}
+
+# Compare result with answer
+if (exists("q1.1")) compare(answers$q1.1, q1.1, ignoreAttr = TRUE)
+if (exists("q1.2")) compare(answers$q1.2, q1.2, ignoreAttr = TRUE)
+```
+
+### Check comparability of data
+
+__q2__ We wish to compare the election results for the two years, but we first need to check to see if the data are comparable. Are the FIPS numbers in `q1.1` and `q1.2` the same? Do counties in `q1.1` and `q1.2` with the same FIPS number have the same county names and types?
+
+The first thing to notice is that there are 3113 entries for 2012 and only 3112 for 2016. This may present a problem.
+
+```{r}
+q1.1 %>%
+  select(county_fips, county_name) %>%
+  left_join(select(q1.2, county_fips, county_name), by = "county_fips") %>%
+  filter(county_name.x != county_name.y)
+
+setdiff(q1.1$county_fips, q1.2$county_fips)
+
+q1.1[q1.1$county_fips == 51515,]
+```
+
+It looks like 3111 of the counties have the same FIPS number in 2012 and 2016. One FIPS number is assigned a different county name in 2012 (Shannon) and in 2016 (Oglala Lakota) and there is no match for one FIPS number (51515 for Beford) from 2012 in 2016.
+
+
+### Make data comparable
+
+We now need to make some small adjustments to the election results from 2012 and 2016 to make them comparable.
+
+(Hint: You may find base R helpful for this question.)
+
+__q3.1__ Create a new tibble `q3.1` with the following changes to `q1.1`:
+
+* For the county with `county_fips` 46113
+    * Change the `county_fips` to 46102
+    * Change the `county_name` to "Oglala Lakota"
+* For the county with `county_fips` 51019, add the election results of `county_fips` 51515, and then remove `county_fips` 51515
+
+```{r}
+q3.1 <- q1.1
+
+q3.1[q3.1$county_fips == 46102,]
+
+# * Change the `county_fips` to 46102
+# * Change the `county_name` to "Oglala Lakota"
+
+q3.1$county_fips[q3.1$county_fips == 46113] = 46102
+q3.1$county_name[q3.1$county_fips == 46102] = "Oglala Lakota"
+
+# * For the county with `county_fips` 51019, add the election results of `county_fips` 51515, and then remove `county_fips` 51515
+
+q3.1$total_2012[q3.1$county_fips == 51019] <- 
+  q3.1$total_2012[q3.1$county_fips == 51019] + 
+  q3.1$total_2012[q3.1$county_fips == 51515]
+
+q3.1$obama[q3.1$county_fips == 51019] <- 
+  q3.1$obama[q3.1$county_fips == 51019] + 
+  q3.1$obama[q3.1$county_fips == 51515]
+
+q3.1$romney[q3.1$county_fips == 51019] <- 
+  q3.1$romney[q3.1$county_fips == 51019] + 
+  q3.1$romney[q3.1$county_fips == 51515]
+
+q3.1 <- q3.1[c(q3.1$county_fips != 51515),]
+
+# Compare result with answer
+if (exists("q3.1")) compare(answers$q3.1, q3.1, ignoreAttr = TRUE)
+```
+
+__q3.2__ Create a new tibble `q3.2` with the following changes to `q1.2`:
+
+* For the county with `county_fips` 46113, change the `county_fips` to 46102
+
+```{r}
+q3.2 <- q1.2
+q3.2$county_fips[q3.2$county_fips == 46113] = 46102
+
+# Compare result with answer
+if (exists("q3.2")) compare(answers$q3.2, q3.2, ignoreAttr = TRUE)
+```
+
+### Join data
+
+__q4__ We are interested in studying how voting changed in each county between 2012 and 2016. A common way that political scientists measure such changes is to measure the change in the margin between the two parties. For example, let's say a county had these election results
+
+    2012, Obama:   51%
+    2012, Romney:  47%
+    2012, Other:    2%
+    2016, Clinton: 48%
+    2016, Trump:   46%
+    2016, Other:    6%
+
+Then the change would be:
+
+    (Trump - Clinton) - (Romney - Obama) = (46% - 48%) - (47% - 51%) = 2%
+    
+There was a 2% increase in the margin of the Republican candidate over the Democratic candidate.
+
+Join `q3.1` and `q3.2` to create a new tibble `q4` with these variables:
+
+* `county_fips`
+* `county_name`
+* `type`
+* `total_2012`: total votes in 2012
+* `obama`: votes for Obama
+* `romney`: votes for Romney
+* `total_2016`: total votes in 2016
+* `clinton`: votes for Clinton
+* `trump`: votes for Trump
+* `r_d_change` = `(trump - clinton) / total_2016 - (romney - obama) / total_2012`
+
+```{r}
+q4 <-
+  q3.1 %>%
+  left_join(q3.2, by = c("county_fips", "county_name", "type")) %>%
+  mutate(r_d_change = (trump - clinton) / total_2016 - 
+           (romney - obama) / total_2012)
+
+
+# Compare result with answer
+if (exists("q4")) compare(answers$q4, q4, ignoreAttr = TRUE)
+```
+
+## Demographic data
+
+We now have the change in margin between the Republican candidate and the Democratic candidate between the 2012 and 2016 elections for 3112 US counties. We will now obtain demographic data for these counties to study the relationship of the change in the margin to the county demographics.
+
+### American Community Survey
+
+Every year the US Census Bureau contacts over 3.5 million randomly selected households to participate in the [American Community Survey (ACS)](https://www.census.gov/programs-surveys/acs/). The data collected are one of the best sources of demographic information on the US population.
+
+It is a very useful skill to know how to obtain data from the US Census Bureau. Below we will show how to obtain county-level data on: age, race, and educational attainment.
+
+### County-level data on age and race
+
+For each county, let's find the median age and the percentage of the county that is white and non-Hispanic. Note that those who are Hispanic or Latino can be of any race.
+
+Here are the steps for obtaining these data:
+
+* Go to [American FactFinder](https://factfinder.census.gov/)
+* Click on Advanced Search > Show Me All
+* To find data on race and ethnic origin:
+    * In the column on the left, click on Topics > People > Origins > Race or Ethnic Origin
+    * Close Select Topics
+* To specify county-level data:
+    * In the column on the left, click on Geographies
+        * Select a geographic type: County - 050
+        * Select one or more geographic areas: All Counties within United States
+        * Click Add To Your Selections
+    * Close Select Geographies
+* The list on the right will contain thousands tables with data from your selections. Restrict attention to the 2016 ACS by selecting by from the drop-down menus above the results:
+    * All available programs: American Community Survey
+    * All available years: 2016
+* You should further restrict your attention to the 2016 ACS 5-year estimates
+* The suggested results are at the top marked with a star. Look at the suggested results. If you click on the names of the tables, you can see the data each contains. One table will contain data on both the median age and the percentage of the population that is white and non-Hispanic.
+* Check the box next to the table you wish to download, and then click Download
+* A zip file will be created for you, which you can download by again clicking Download
+* After unzipping the downloaded file, you will find a CSV file with metadata explaining the hundreds of included variables. Find the variables for estimates of:
+    * Median age (in years)
+    * Percentage of the population that is white and non-Hispanic
+* To find data on educational attainment;
+    * In the Your Selections box on the top left, click the X next to Race or Ethnic Origin
+    * In the column on the left, click Topics > People > Education > Education Attainment
+    * Close Select Topics
+    * Follow the remaining steps above to download the data
+* After unzipping the downloaded file, you will find a CSV file with metadata explaining the hundreds of included variables. Find the variable for estimates of:
+    * Percentage of the population with a bachelor's degree or higher
+
+__q5__ Now read in the data into a tibble `q5` with the following variables:
+
+* `county_fips`
+* `median_age`: Estimate of median age (in years)
+* `prop_white`: Estimate of proportion of the population that is white and non-Hispanic
+
+Hints:
+
+* The first row of the file contains the variable names. The second row contains descriptions of the variables. The data start on the third row. To read this data in, skip the first two rows, and then use `set_names()` to set the variable names.
+* In reading in the data, remember to use `na =` to set `NA`s.
+
+```{r, message=FALSE}
+df_prop_white <- paste(root, "prop_white.csv", sep = "")
+
+
+q5 <-
+  df_prop_white %>%
+  read_csv(na = "NA") %>%
+  select(county_fips = GEO.id2, median_age = HC01_VC23, per_white = HC03_VC94) 
+
+
+q5 <-
+  q5 %>%
+  slice(2:nrow(q5)) %>%
+  mutate(county_fips = as.integer(county_fips), median_age = 
+           as.double(median_age), prop_white = as.double(per_white)/100) %>%
+  select(county_fips, median_age, prop_white)
+
+# Compare result with answer
+if (exists("q5")) compare(answers$q5, q5, ignoreAttr = TRUE)
+```
+
+### County-level data on educational attainment
+
+__q6__ Use the approach in q5 to create a tibble `q6` with the following variables:
+
+* `county_fips`
+* `prop_college`: Estimated proportion of the population with a bachelor's degree or higher
+
+Hints:
+
+* The first row of the file contains the variable names. The second row contains descriptions of the variables. The data start on the third row. To read this data in, skip the first two rows, and then use `set_names()` to set the variable names.
+* In reading in the data, remember to use `na =` to set `NA`s.
+* To avoid parsing errors, it may be best to read in all variables as type character, and then convert the variables of interest later.
+
+```{r, message = FALSE, warning = FALSE}
+educ_att <- paste(root, "educ_att.csv", sep = "")
+
+q6 <-
+  educ_att %>%
+  read_csv(na = "NA") %>%
+  select(county_fips = GEO.id2, per_college = HC02_EST_VC18) 
+
+q6 <-
+  q6 %>%
+  slice(2:nrow(q6)) %>% 
+  mutate(county_fips = as.integer(county_fips), prop_college = 
+           as.double(per_college)/100) %>%
+  select(county_fips, prop_college)
+
+# Compare result with answer
+if (exists("q6")) compare(answers$q6, q6)
+```
+
+__q7__ Are all of the counties in `q4` in `q5` and `q6`?
+
+```{r}
+q5 %>%
+  select(county_fips) %>%
+  left_join(select(q4, county_fips, county_name), by = "county_fips") %>%
+  filter(is.na(county_name)) %>%
+  count()
+
+q6 %>%
+  select(county_fips) %>%
+  left_join(select(q4, county_fips, county_name), by = "county_fips") %>%
+  filter(is.na(county_name)) %>%
+  count()
+```
+
+THere are 3142 rows in q5 and q6 and 3112 rows in q4. There are 30 rows in q5 that are not in q4 and all counties in q4 have a match in q5. The same is true for q6. So all counties in q4 are in q5 and q6.
+
+
+## Plots
+```{r}
+q8 <-
+  q4 %>%
+  left_join(q5, by = "county_fips")
+
+q8 <-
+  q8 %>%
+  left_join(q6, by = "county_fips")
+
+q8 <-
+  q8 %>%
+  mutate(Winner = if_else(trump > clinton, "Trump", "Clinton"))
+```
+
+```{r}
+df2012 <-
+  q8 %>% 
+  summarise(sum_2012 = sum(total_2012), obama = sum(obama), 
+            romney = sum(romney)) %>%
+  mutate(per_obama = obama/sum_2012, per_romney = romney/sum_2012)
+
+df2016 <-
+  q8 %>% 
+  summarise(sum_2016 = sum(total_2016), clinton = sum(clinton), 
+            trump = sum(trump)) %>%
+  mutate(per_clinton = clinton/sum_2016, per_trump = trump/sum_2016)
+
+df2016$sum_2016 - df2012$sum_2012
+
+q8 %>%
+  summarise(avg_chg = mean(r_d_change))
+```
+
+A total of 128,779,615 voted in 2012 and a total 136,775,279 voted in 2016 so 7,995,664 more people voted in 2016 than 2012, but we have no way of accounting for how much population grew during that time.
+
+In 2012, 65793136 people voted for Obama for 51% of the total vote and 60768742 voted for Romney for 47% of the total vote. 
+
+In 2016, 65733517 voted for Clinton for 48% of the total vote and 62821018 for Trump for 46% of the total vote. 
+
+The average change in margin from Democrat to Republican was 11% across all counties (this does not take into consideration how population differs across counties).
+
+### Relationship of change in Republican margin to age
+
+__q8__ Plot the change in the Republican margin between the 2012 and 2016 elections as a function of the median age of the county. What conclusions can you draw?
+
+```{r}
+q8 %>%
+  ggplot(mapping = aes(x = median_age, y = r_d_change)) +
+  geom_point(aes(color = Winner, size = total_2016), alpha = 0.1) +
+  geom_smooth() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Relationship of change in Republican margin to age",
+       subtitle = "Size of point determined by # of people voting",
+       x = "Median age for a county",
+       y = "Change in Republican margin") +
+  theme_bw() +
+  scale_x_continuous(breaks = c(20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70)) +
+  scale_color_manual(values = c("blue", "red")) +
+  guides(size = "none")
+
+#kudos to Sean for plot improvements
+```
+
+It looks like most counties have a median age between 37 - 45. We can see from this graph (above) that in general, there is a very slight positive relationship between the median age of a county and the change in Republican margin. This means that the older the people in a given county, the more likely they were to show an increase in the change in Republican margin.
+
+The highest level of change in Republican margin (15%) occured in counties with a median age of 43-44. For counties with a median age around 26 or below, there was either no change in Republican margin or negative change in Republican margin (meaning an increase in the Democratic margin). 
+
+It is important to note that isn't that much data at the tail ends of the median age dataset.
+
+There is a dip in change in Republican margin (to 0%) in counties where the median age is around 33. I'm not entirely sure what might account for that.
+
+One big takeaway in all of the graphs is that the counties with higher voting population went to Clinton - presumably these are larger urban city centers.
+
+### Relationship of change in Republican margin to percentage white and non-Hispanic
+
+__q9__ Plot the change in the Republican margin between the 2012 and 2016 elections as a function of the percentage of the county's population that is white and non-Hispanic. What conclusions can you draw?
+
+```{r}
+q8 %>%
+  ggplot(mapping = aes(x = prop_white, y = r_d_change)) +
+  viridis::scale_fill_viridis() + 
+  geom_point(aes(color = Winner, size = total_2016), alpha = 0.1) + 
+  geom_smooth() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Relationship of change in Republican margin to percentage white 
+       and non-Hispanic",
+       subtitle = "Size of point determined by # of people voting",
+       x = "Percentage of a county's population that is white",
+       y = "Change in Republican margin") +
+  theme_bw() +
+  scale_color_manual(values = c("blue", "red")) +
+  guides(size = "none")
+```
+I decided to use geom_point() with a low alpha for to display each county because I think it does a better job of distinguishing between areas with really sparse data than geom_hex(). For instance, a hex doesn't necessarily distinguishing between areas on the graph where there is just one county and areas where there are 2-3.
+
+The first thing to notice is that the majority of counties The relationship between the percentage of county that is white and non-hispanic (`prop_white`) and the change in Republican margin is quite striking. Starting at `prop_white` level of 75% and going to 100%, there is a strong positive relationship between `prop_white` and change in Republican margin. Counties with a `prop_white` of 75% showed a change in Republican margin of around 6-7%. Counties that have a `prop_white` of around 100% showed a change in Republican margin of around 22.5%.
+
+It looks likes the change in Republican margin was comparatively minimal (around 4-6%) for counties with a `prop_white` of 25% to 75% and the same across counties of this `prop_white`. It looks like there might have been a larger change in Republican margin in counties that had a `prop_white` of less than 25%, but we don't have that much data for that class of counties.
+
+In sum, this means that most of movement or the greatest movement in the change in Republican margin occured in counties that had a `prop_white` of 75% or greater, suggesting the change was driven by white people, not minorities.
+
+
+
+### Relationship of change in Republican margin to educational attainment
+
+__q10__ Plot the change in the Republican margin between the 2012 and 2016 elections as a function of the percentage of the county's population without a bachelor's degree. What conclusions can you draw?
+
+```{r}
+q8 %>%  
+  ggplot(mapping = aes(x = 1 - prop_college, y = r_d_change)) +
+  geom_point(aes(color = Winner, size = total_2016), alpha = 0.1) +
+  geom_smooth() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Relationship of change in Republican margin to educational 
+       attainment",
+       subtitle = "Size of point determined by # of people voting",
+       x = "Percentage of a county's population that does not have a Bachelor's degree",
+       y = "Change in Republican margin") +
+  theme_bw() +
+  scale_color_manual(values = c("blue", "red")) +
+  guides(size = "none")
+```
+We can see that most counties have a population where around 12%-15% people have at least a Bachelor's degree.
+
+From this graph, we can see that there is a very clear negative relationship between percentage of the county's population with (I decided to plot with a Bachelor's degree instead of without a Bachelor's degree) a bachelor's degree (`prop_college`) and change in Republican margin. The change in Republican margin was positive - from around 15% to 0% - only for counties in which 35% or fewer or the residents had at least a Bachelor's degree. For counties where 35% or more of the residents have at least a Bachelor's degree, the change in Republican margin extends from 0% for counties with a `prop_college` of 35% to -20% for counties with a `prop_college` of 80% though the upper end of this range is very, very sparse.
+
+Just did this for fun!
+
+```{r}
+lm1 <- lm(r_d_change ~ median_age + prop_white + prop_college, data = q8)
+summary(lm1)
+lm2 <- lm(r_d_change ~ median_age + prop_white * prop_college, data = q8)
+summary(lm2)
+lm3 <- lm(r_d_change ~ median_age * prop_white * prop_college, data = q8)
+summary(lm3)
+anova(lm1, lm2, lm3)
+```
+
+```{r}
+write_csv(q8, "q8.csv")
+```
+
+Some interesting interactive effects, particularly the one between `prop_white` and `prop_college` in lm2.
